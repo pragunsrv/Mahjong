@@ -16,13 +16,16 @@ class Mahjong:
 
     def __init__(self):
         self.tiles = self.generate_tiles()
-        self.player_hand = []
-        self.discarded_tiles = []
-        self.wall_tiles = self.tiles.copy()
         self.flower_tiles = []
         self.season_tiles = []
-        self.players = [self.player_hand, [], [], []]  
+        self.players = [[] for _ in range(4)]
+        self.discarded_tiles = []
+        self.wall_tiles = self.tiles.copy()
         self.current_player = 0
+        self.turn_count = 0
+        self.melds = [[] for _ in range(4)]
+        self.kongs = [[] for _ in range(4)]
+        self.flowers = [[] for _ in range(4)]
 
     def generate_tiles(self):
         tiles = []
@@ -53,6 +56,7 @@ class Mahjong:
         for player in self.players:
             for _ in range(13):
                 player.append(self.draw_tile())
+                self.check_special_tiles(player, player[-1])
 
     def discard_tile(self, tile):
         if tile in self.players[self.current_player]:
@@ -75,13 +79,33 @@ class Mahjong:
     def check_for_win(self):
         return len(self.players[self.current_player]) == 14
 
+    def check_special_tiles(self, player, tile):
+        if tile.suit == 'Flower' or tile.suit == 'Season':
+            player.remove(tile)
+            self.flowers[self.players.index(player)].append(tile)
+            player.append(self.draw_from_wall())
+
+    def add_to_meld(self, player, tiles):
+        if len(tiles) == 3:
+            self.melds[self.players.index(player)].append(tiles)
+            for tile in tiles:
+                player.remove(tile)
+
+    def add_to_kong(self, player, tiles):
+        if len(tiles) == 4:
+            self.kongs[self.players.index(player)].append(tiles)
+            for tile in tiles:
+                player.remove(tile)
+
     def play_turn(self):
         drawn_tile = self.draw_from_wall()
         if drawn_tile:
             self.players[self.current_player].append(drawn_tile)
+            self.check_special_tiles(self.players[self.current_player], drawn_tile)
             self.discard_tile(self.players[self.current_player][0])
             win = self.check_for_win()
             self.current_player = (self.current_player + 1) % 4
+            self.turn_count += 1
             return win
         return False
 
@@ -91,11 +115,17 @@ class Mahjong:
             print(f"Player {self.current_player + 1}'s turn")
             print("Current hand:", self.show_hand())
             print("Discarded tiles:", self.show_discarded_tiles())
+            print("Melds:", self.melds[self.current_player])
+            print("Kongs:", self.kongs[self.current_player])
+            print("Flowers:", self.flowers[self.current_player])
             win = self.play_turn()
             if win:
                 print(f"Player {self.current_player + 1} has a winning hand!")
                 break
             print("\n" + "-"*20 + "\n")
+            if self.turn_count >= 100:
+                print("Game ends in a draw due to too many turns.")
+                break
 
 game = Mahjong()
 game.play_game()
