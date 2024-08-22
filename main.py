@@ -33,6 +33,12 @@ class Mahjong:
         self.play_log = []
         self.strategy_mode = False
         self.strategy_info = []
+        self.dealer_tiles = [None] * 4
+        self.current_dealer = 0
+        self.replacement_tiles = [None] * 4
+        self.num_draws = 0
+        self.round_wins = [0] * 4
+        self.rounds_played = 0
 
     def generate_tiles(self):
         tiles = []
@@ -231,26 +237,46 @@ class Mahjong:
             if win:
                 self.winning_tiles.append(drawn_tile)
                 self.log_play(f"Player {self.current_player + 1} wins with a winning tile {drawn_tile}")
+                self.round_wins[self.current_player] += 1
+                self.reset_round()
             self.current_player = (self.current_player + 1) % 4
             self.turn_count += 1
             return win
         return False
 
-    def play_game(self):
+    def reset_round(self):
+        self.turn_count = 0
+        self.discarded_tiles.clear()
+        self.current_dealer = (self.current_dealer + 1) % 4
+        self.players = [[] for _ in range(4)]
         self.deal_hand()
-        while True:
-            print(f"Player {self.current_player + 1}'s turn")
-            print("Current hand:", self.show_hand())
-            print("Discarded tiles:", self.show_discarded_tiles())
-            print("Melds:", self.melds[self.current_player])
-            print("Kongs:", self.kongs[self.current_player])
-            print("Flowers:", self.flowers[self.current_player])
-            if not self.strategy_mode:
-                self.activate_strategy_mode()
-            win = self.play_turn()
-            if win:
-                print(f"Player {self.current_player + 1} has won!")
-                break
+        self.log_play("Round reset completed.")
+
+    def play_game(self):
+        while self.rounds_played < 4:
+            self.deal_hand()
+            while True:
+                print(f"Player {self.current_player + 1}'s turn")
+                print("Current hand:", self.show_hand())
+                print("Discarded tiles:", self.show_discarded_tiles())
+                print("Melds:", self.melds[self.current_player])
+                print("Kongs:", self.kongs[self.current_player])
+                print("Flowers:", self.flowers[self.current_player])
+                if not self.strategy_mode:
+                    self.activate_strategy_mode()
+                win = self.play_turn()
+                if win:
+                    print(f"Player {self.current_player + 1} has won this round!")
+                    break
+            self.rounds_played += 1
+        self.display_final_scores()
+
+    def display_final_scores(self):
+        for i, points in enumerate(self.points):
+            print(f"Player {i + 1} scored {points} points")
+        for i, wins in enumerate(self.round_wins):
+            print(f"Player {i + 1} won {wins} rounds")
+        self.log_play("Final scores displayed.")
 
     def start(self):
         self.play_game()
