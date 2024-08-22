@@ -30,6 +30,7 @@ class Mahjong:
         self.winning_tiles = []
         self.turn_history = []
         self.special_rules = {"heavenly_hand": False, "earthly_hand": False, "thirteen_orphans": False}
+        self.play_log = []
 
     def generate_tiles(self):
         tiles = []
@@ -67,6 +68,7 @@ class Mahjong:
             self.players[self.current_player].remove(tile)
             self.discarded_tiles.append(tile)
             self.turn_history.append((self.current_player, tile))
+            self.log_play(f"Player {self.current_player + 1} discarded {tile}")
 
     def show_hand(self, player=None):
         if player is None:
@@ -89,18 +91,21 @@ class Mahjong:
             player.remove(tile)
             self.flowers[self.players.index(player)].append(tile)
             player.append(self.draw_from_wall())
+            self.log_play(f"Player {self.players.index(player) + 1} drew a {tile.suit} tile and replaced it")
 
     def add_to_meld(self, player, tiles):
         if len(tiles) == 3:
             self.melds[self.players.index(player)].append(tiles)
             for tile in tiles:
                 player.remove(tile)
+            self.log_play(f"Player {self.players.index(player) + 1} formed a meld with {tiles}")
 
     def add_to_kong(self, player, tiles):
         if len(tiles) == 4:
             self.kongs[self.players.index(player)].append(tiles)
             for tile in tiles:
                 player.remove(tile)
+            self.log_play(f"Player {self.players.index(player) + 1} formed a kong with {tiles}")
 
     def calculate_points(self, player):
         points = 0
@@ -111,6 +116,9 @@ class Mahjong:
             points += 100
         if self.special_rules["earthly_hand"] and player == 0 and self.turn_count == 1:
             points += 50
+        if self.check_thirteen_orphans(player):
+            points += 200
+            self.special_rules["thirteen_orphans"] = True
         self.points[player] = points
         return points
 
@@ -120,43 +128,41 @@ class Mahjong:
         if self.turn_count == 1 and self.check_for_win():
             self.special_rules["earthly_hand"] = True
 
+    def check_thirteen_orphans(self, player):
+        necessary_tiles = [
+            Tile('Characters', '1'), Tile('Characters', '9'),
+            Tile('Bamboo', '1'), Tile('Bamboo', '9'),
+            Tile('Dots', '1'), Tile('Dots', '9'),
+            Tile('Wind', 'East'), Tile('Wind', 'South'),
+            Tile('Wind', 'West'), Tile('Wind', 'North'),
+            Tile('Dragon', 'Red'), Tile('Dragon', 'Green'),
+            Tile('Dragon', 'White')
+        ]
+        hand_tiles = self.players[player]
+        for necessary_tile in necessary_tiles:
+            if not any(str(necessary_tile) == str(tile) for tile in hand_tiles):
+                return False
+        return True
+
+    def log_play(self, message):
+        self.play_log.append(message)
+
     def play_turn(self):
         drawn_tile = self.draw_from_wall()
         if drawn_tile:
             self.players[self.current_player].append(drawn_tile)
             self.check_special_tiles(self.players[self.current_player], drawn_tile)
+            self.log_play(f"Player {self.current_player + 1} drew {drawn_tile}")
             self.discard_tile(self.players[self.current_player][0])
             win = self.check_for_win()
             self.check_special_rules()
             if win:
                 self.winning_tiles.append(drawn_tile)
+                self.log_play(f"Player {self.current_player + 1} wins with a winning tile {drawn_tile}")
             self.current_player = (self.current_player + 1) % 4
             self.turn_count += 1
             return win
         return False
-    def other_turn(self):
-        points = 0
-        points += len(self.melds[player]) * 2
-        points += len(self.kongs[player]) * 8
-        points += len(self.flowers[player]) * 4
-        if self.special_rules["heavenly_hand"] and player == 0 and self.turn_count == 0:
-            points += 100
-        if self.special_rules["earthly_hand"] and player == 0 and self.turn_count == 1:
-            points += 50
-        self.points[player] = points
-        drawn_tile = self.draw_from_wall()
-        if drawn_tile:
-            self.players[self.current_player].append(drawn_tile)
-            self.check_special_tiles(self.players[self.current_player], drawn_tile)
-            self.discard_tile(self.players[self.current_player][0])
-            win = self.check_for_win()
-            if win:
-                self.winning_tiles.append(drawn_tile)
-            self.current_player = (self.current_player + 1) % 4
-            self.turn_count += 1
-            return win
-        return False
-        
 
     def play_game(self):
         self.deal_hand()
@@ -180,6 +186,7 @@ class Mahjong:
         winning_player = self.points.index(max(self.points))
         print(f"Player {winning_player + 1} wins the game with {self.points[winning_player]} points!")
         print(f"Turn history: {[(i+1, str(tile)) for i, tile in self.turn_history]}")
+        print(f"Play log:\n" + "\n".join(self.play_log))
 
 game = Mahjong()
 game.play_game()
