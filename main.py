@@ -1,4 +1,6 @@
 import random
+import itertools
+import copy
 
 class Tile:
     def __init__(self, suit, rank):
@@ -7,6 +9,12 @@ class Tile:
 
     def __str__(self):
         return f"{self.rank} of {self.suit}"
+
+    def __eq__(self, other):
+        return self.suit == other.suit and self.rank == other.rank
+
+    def __hash__(self):
+        return hash((self.suit, self.rank))
 
 class Mahjong:
     suits = ['Bamboo', 'Characters', 'Dots', 'Winds', 'Dragons']
@@ -49,6 +57,7 @@ class Mahjong:
         self.special_hand_counts = { "all_pong": 0, "pure_triplets": 0 }
         self.opponent_strategies = [self.default_strategy, self.aggressive_strategy, self.defensive_strategy]
         self.game_statistics = {'turns': 0, 'draws': 0, 'discards': 0, 'melds': 0, 'kongs': 0}
+        self.deck_history = []
 
     def generate_tiles(self):
         tiles = []
@@ -70,6 +79,7 @@ class Mahjong:
     def draw_tile(self):
         tile = self.tiles.pop()
         self.wall_tiles.remove(tile)
+        self.deck_history.append(tile)
         self.game_statistics['draws'] += 1
         return tile
 
@@ -429,6 +439,50 @@ class Mahjong:
         if not possible_melds and not possible_kongs:
             return self.players[self.current_player][0] if len(self.players[self.current_player]) > 0 else None
         return None
+
+    def analyze_game_state(self):
+        self.log_play(f"Analyzing game state...")
+        for i, player in enumerate(self.players):
+            self.log_play(f"Player {i + 1}'s hand: {[str(tile) for tile in player]}")
+            self.log_play(f"Player {i + 1}'s melds: {self.melds[i]}")
+            self.log_play(f"Player {i + 1}'s kongs: {self.kongs[i]}")
+            self.log_play(f"Player {i + 1}'s flowers: {self.flowers_in_hand[i]}")
+
+    def save_game_state(self):
+        self.log_play("Saving game state...")
+        game_state = {
+            "players": [[str(tile) for tile in player] for player in self.players],
+            "discarded_tiles": [str(tile) for tile in self.discarded_tiles],
+            "current_player": self.current_player,
+            "turn_count": self.turn_count,
+            "wall_tiles": [str(tile) for tile in self.wall_tiles],
+            "melds": self.melds,
+            "kongs": self.kongs,
+            "flowers_in_hand": self.flowers_in_hand,
+            "points": self.points,
+            "winning_tiles": [str(tile) for tile in self.winning_tiles],
+            "special_rules": self.special_rules,
+            "play_log": self.play_log,
+            "strategy_info": self.strategy_info,
+            "dealer_tiles": self.dealer_tiles,
+            "current_dealer": self.current_dealer,
+            "replacement_tiles": self.replacement_tiles,
+            "num_draws": self.num_draws,
+            "round_wins": self.round_wins,
+            "rounds_played": self.rounds_played,
+            "max_rounds": self.max_rounds,
+            "highest_score": self.highest_score,
+            "card_counts": self.card_counts,
+            "suit_frequency": self.suit_frequency,
+            "rank_frequency": self.rank_frequency,
+            "special_hand_counts": self.special_hand_counts,
+            "opponent_strategies": [str(strategy) for strategy in self.opponent_strategies],
+            "game_statistics": self.game_statistics,
+            "deck_history": [str(tile) for tile in self.deck_history]
+        }
+        with open("game_state.txt", "w") as f:
+            f.write(str(game_state))
+        self.log_play("Game state saved to game_state.txt.")
 
 if __name__ == "__main__":
     game = Mahjong()
