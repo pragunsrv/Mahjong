@@ -31,6 +31,8 @@ class Mahjong:
         self.turn_history = []
         self.special_rules = {"heavenly_hand": False, "earthly_hand": False, "thirteen_orphans": False}
         self.play_log = []
+        self.strategy_mode = False
+        self.strategy_info = []
 
     def generate_tiles(self):
         tiles = []
@@ -147,13 +149,83 @@ class Mahjong:
     def log_play(self, message):
         self.play_log.append(message)
 
+    def activate_strategy_mode(self):
+        self.strategy_mode = True
+        self.log_play("Strategy mode activated.")
+        self.analyze_player_hands()
+
+    def deactivate_strategy_mode(self):
+        self.strategy_mode = False
+        self.log_play("Strategy mode deactivated.")
+
+    def analyze_player_hands(self):
+        for i, player in enumerate(self.players):
+            possible_melds = self.find_possible_melds(player)
+            possible_kongs = self.find_possible_kongs(player)
+            self.strategy_info.append({
+                "player": i + 1,
+                "possible_melds": possible_melds,
+                "possible_kongs": possible_kongs,
+                "hand": [str(tile) for tile in player]
+            })
+            self.log_play(f"Player {i + 1} has {len(possible_melds)} possible meld(s) and {len(possible_kongs)} possible kong(s).")
+
+    def find_possible_melds(self, player):
+        possible_melds = []
+        tile_counts = {}
+        for tile in player:
+            key = (tile.suit, tile.rank)
+            if key not in tile_counts:
+                tile_counts[key] = 0
+            tile_counts[key] += 1
+        for (suit, rank), count in tile_counts.items():
+            if count >= 3:
+                possible_melds.append([Tile(suit, rank)] * 3)
+        return possible_melds
+
+    def find_possible_kongs(self, player):
+        possible_kongs = []
+        tile_counts = {}
+        for tile in player:
+            key = (tile.suit, tile.rank)
+            if key not in tile_counts:
+                tile_counts[key] = 0
+            tile_counts[key] += 1
+        for (suit, rank), count in tile_counts.items():
+            if count >= 4:
+                possible_kongs.append([Tile(suit, rank)] * 4)
+        return possible_kongs
+
+    def suggest_discard(self):
+        if self.strategy_mode:
+            for player_info in self.strategy_info:
+                hand = player_info["hand"]
+                for tile in hand:
+                    if self.is_tile_safe_to_discard(tile, player_info["possible_melds"], player_info["possible_kongs"]):
+                        self.log_play(f"Suggested discard for Player {player_info['player']}: {tile}")
+                        return tile
+        return None
+
+    def is_tile_safe_to_discard(self, tile, possible_melds, possible_kongs):
+        for meld in possible_melds:
+            if tile in meld:
+                return False
+        for kong in possible_kongs:
+            if tile in kong:
+                return False
+        return True
+
     def play_turn(self):
         drawn_tile = self.draw_from_wall()
         if drawn_tile:
             self.players[self.current_player].append(drawn_tile)
             self.check_special_tiles(self.players[self.current_player], drawn_tile)
             self.log_play(f"Player {self.current_player + 1} drew {drawn_tile}")
-            self.discard_tile(self.players[self.current_player][0])
+            suggested_discard = self.suggest_discard()
+            if suggested_discard:
+                self.discard_tile(suggested_discard)
+            else:
+                self.discard_tile(self.players[self.current_player][0])
             win = self.check_for_win()
             self.check_special_rules()
             if win:
@@ -173,20 +245,16 @@ class Mahjong:
             print("Melds:", self.melds[self.current_player])
             print("Kongs:", self.kongs[self.current_player])
             print("Flowers:", self.flowers[self.current_player])
+            if not self.strategy_mode:
+                self.activate_strategy_mode()
             win = self.play_turn()
             if win:
-                print(f"Player {self.current_player + 1} has a winning hand!")
+                print(f"Player {self.current_player + 1} has won!")
                 break
-            print("\n" + "-"*20 + "\n")
-            if self.turn_count >= 100:
-                print("Game ends in a draw due to too many turns.")
-                break
-        for i in range(4):
-            print(f"Player {i + 1} scored {self.calculate_points(i)} points.")
-        winning_player = self.points.index(max(self.points))
-        print(f"Player {winning_player + 1} wins the game with {self.points[winning_player]} points!")
-        print(f"Turn history: {[(i+1, str(tile)) for i, tile in self.turn_history]}")
-        print(f"Play log:\n" + "\n".join(self.play_log))
 
-game = Mahjong()
-game.play_game()
+    def start(self):
+        self.play_game()
+
+if __name__ == "__main__":
+    game = Mahjong()
+    game.start()
