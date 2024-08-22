@@ -28,6 +28,8 @@ class Mahjong:
         self.flowers = [[] for _ in range(4)]
         self.points = [0, 0, 0, 0]
         self.winning_tiles = []
+        self.turn_history = []
+        self.special_rules = {"heavenly_hand": False, "earthly_hand": False, "thirteen_orphans": False}
 
     def generate_tiles(self):
         tiles = []
@@ -64,6 +66,7 @@ class Mahjong:
         if tile in self.players[self.current_player]:
             self.players[self.current_player].remove(tile)
             self.discarded_tiles.append(tile)
+            self.turn_history.append((self.current_player, tile))
 
     def show_hand(self, player=None):
         if player is None:
@@ -98,34 +101,49 @@ class Mahjong:
             self.kongs[self.players.index(player)].append(tiles)
             for tile in tiles:
                 player.remove(tile)
-    def degenerate_tiles(self):
-        tiles = []
-        for suit in Mahjong.suits[:3]:
-            for rank in Mahjong.ranks:
-                for _ in range(4):
-                    tiles.append(Tile(suit, rank))
-        for wind in Mahjong.wind_tiles:
-            for _ in range(4):
-                tiles.append(Tile('Wind', wind))
-        for dragon in Mahjong.dragon_tiles:
-            for _ in range(4):
-                tiles.append(Tile('Dragon', dragon))
-        for i in range(1, 5):
-            self.flower_tiles.append(Tile('Flower', str(i)))
-            self.season_tiles.append(Tile('Season', str(i)))
-        tiles.extend(self.flower_tiles * 4)
-        tiles.extend(self.season_tiles * 4)
-        random.shuffle(tiles)
-        return tiles
+
     def calculate_points(self, player):
         points = 0
         points += len(self.melds[player]) * 2
         points += len(self.kongs[player]) * 8
         points += len(self.flowers[player]) * 4
+        if self.special_rules["heavenly_hand"] and player == 0 and self.turn_count == 0:
+            points += 100
+        if self.special_rules["earthly_hand"] and player == 0 and self.turn_count == 1:
+            points += 50
         self.points[player] = points
         return points
 
+    def check_special_rules(self):
+        if self.turn_count == 0 and self.check_for_win():
+            self.special_rules["heavenly_hand"] = True
+        if self.turn_count == 1 and self.check_for_win():
+            self.special_rules["earthly_hand"] = True
+
     def play_turn(self):
+        drawn_tile = self.draw_from_wall()
+        if drawn_tile:
+            self.players[self.current_player].append(drawn_tile)
+            self.check_special_tiles(self.players[self.current_player], drawn_tile)
+            self.discard_tile(self.players[self.current_player][0])
+            win = self.check_for_win()
+            self.check_special_rules()
+            if win:
+                self.winning_tiles.append(drawn_tile)
+            self.current_player = (self.current_player + 1) % 4
+            self.turn_count += 1
+            return win
+        return False
+    def other_turn(self):
+        points = 0
+        points += len(self.melds[player]) * 2
+        points += len(self.kongs[player]) * 8
+        points += len(self.flowers[player]) * 4
+        if self.special_rules["heavenly_hand"] and player == 0 and self.turn_count == 0:
+            points += 100
+        if self.special_rules["earthly_hand"] and player == 0 and self.turn_count == 1:
+            points += 50
+        self.points[player] = points
         drawn_tile = self.draw_from_wall()
         if drawn_tile:
             self.players[self.current_player].append(drawn_tile)
@@ -138,6 +156,7 @@ class Mahjong:
             self.turn_count += 1
             return win
         return False
+        
 
     def play_game(self):
         self.deal_hand()
@@ -160,6 +179,7 @@ class Mahjong:
             print(f"Player {i + 1} scored {self.calculate_points(i)} points.")
         winning_player = self.points.index(max(self.points))
         print(f"Player {winning_player + 1} wins the game with {self.points[winning_player]} points!")
+        print(f"Turn history: {[(i+1, str(tile)) for i, tile in self.turn_history]}")
 
 game = Mahjong()
 game.play_game()
