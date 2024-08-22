@@ -13,11 +13,13 @@ class Mahjong:
     ranks = [str(i) for i in range(1, 10)]
     wind_tiles = ['East', 'South', 'West', 'North']
     dragon_tiles = ['Red', 'Green', 'White']
+    flowers = ['Peach', 'Chrysanthemum', 'Orchid', 'Plum']
+    seasons = ['Spring', 'Summer', 'Autumn', 'Winter']
 
     def __init__(self):
         self.tiles = self.generate_tiles()
-        self.flower_tiles = []
-        self.season_tiles = []
+        self.flower_tiles = [Tile('Flower', flower) for flower in Mahjong.flowers]
+        self.season_tiles = [Tile('Season', season) for season in Mahjong.seasons]
         self.players = [[] for _ in range(4)]
         self.discarded_tiles = []
         self.wall_tiles = self.tiles.copy()
@@ -25,7 +27,7 @@ class Mahjong:
         self.turn_count = 0
         self.melds = [[] for _ in range(4)]
         self.kongs = [[] for _ in range(4)]
-        self.flowers = [[] for _ in range(4)]
+        self.flowers_in_hand = [[] for _ in range(4)]
         self.points = [0, 0, 0, 0]
         self.winning_tiles = []
         self.turn_history = []
@@ -45,8 +47,8 @@ class Mahjong:
         self.suit_frequency = {suit: 0 for suit in Mahjong.suits}
         self.rank_frequency = {rank: 0 for rank in Mahjong.ranks}
         self.special_hand_counts = { "all_pong": 0, "pure_triplets": 0 }
-        self.opponent_strategies = [self.default_strategy] * 3
-        self.game_statistics = {'turns': 0, 'draws': 0, 'discards': 0}
+        self.opponent_strategies = [self.default_strategy, self.aggressive_strategy, self.defensive_strategy]
+        self.game_statistics = {'turns': 0, 'draws': 0, 'discards': 0, 'melds': 0, 'kongs': 0}
 
     def generate_tiles(self):
         tiles = []
@@ -60,9 +62,6 @@ class Mahjong:
         for dragon in Mahjong.dragon_tiles:
             for _ in range(4):
                 tiles.append(Tile('Dragon', dragon))
-        for i in range(1, 5):
-            self.flower_tiles.append(Tile('Flower', str(i)))
-            self.season_tiles.append(Tile('Season', str(i)))
         tiles.extend(self.flower_tiles * 4)
         tiles.extend(self.season_tiles * 4)
         random.shuffle(tiles)
@@ -108,7 +107,7 @@ class Mahjong:
     def check_special_tiles(self, player, tile):
         if tile.suit == 'Flower' or tile.suit == 'Season':
             player.remove(tile)
-            self.flowers[self.players.index(player)].append(tile)
+            self.flowers_in_hand[self.players.index(player)].append(tile)
             player.append(self.draw_from_wall())
             self.log_play(f"Player {self.players.index(player) + 1} drew a {tile.suit} tile and replaced it")
 
@@ -117,6 +116,7 @@ class Mahjong:
             self.melds[self.players.index(player)].append(tiles)
             for tile in tiles:
                 player.remove(tile)
+            self.game_statistics['melds'] += 1
             self.log_play(f"Player {self.players.index(player) + 1} formed a meld with {tiles}")
 
     def add_to_kong(self, player, tiles):
@@ -124,13 +124,14 @@ class Mahjong:
             self.kongs[self.players.index(player)].append(tiles)
             for tile in tiles:
                 player.remove(tile)
+            self.game_statistics['kongs'] += 1
             self.log_play(f"Player {self.players.index(player) + 1} formed a kong with {tiles}")
 
     def calculate_points(self, player):
         points = 0
         points += len(self.melds[player]) * 2
         points += len(self.kongs[player]) * 8
-        points += len(self.flowers[player]) * 4
+        points += len(self.flowers_in_hand[player]) * 4
         if self.special_rules["heavenly_hand"] and player == 0 and self.turn_count == 0:
             points += 100
         if self.special_rules["earthly_hand"] and player == 0 and self.turn_count == 1:
@@ -210,19 +211,63 @@ class Mahjong:
                 tile_counts[key] = 0
             tile_counts[key] += 1
         for (suit, rank), count in tile_counts.items():
-            if count >= 4:
+            if count == 4:
                 possible_kongs.append([Tile(suit, rank)] * 4)
         return possible_kongs
 
-    def suggest_discard(self):
-        if not self.players[self.current_player]:
-            return None
-        possible_melds = self.find_possible_melds(self.players[self.current_player])
-        possible_kongs = self.find_possible_kongs(self.players[self.current_player])
-        for tile in self.players[self.current_player]:
+    def advanced_ai_strategy(self, player):
+        if self.strategy_mode:
+            return self.suggest_advanced_discard(player)
+        return None
+
+    def suggest_advanced_discard(self, player):
+        possible_melds = self.find_possible_melds(player)
+        possible_kongs = self.find_possible_kongs(player)
+        if not possible_melds and not possible_kongs:
+            return player[0] if len(player) > 0 else None
+        return None
+
+    def aggressive_strategy(self, player):
+        if self.strategy_mode:
+            return self.suggest_aggressive_discard(player)
+        return None
+
+    def suggest_aggressive_discard(self, player):
+        possible_discard = self.find_most_disposable_tile(player)
+        if possible_discard:
+            return possible_discard
+        return player[0] if len(player) > 0 else None
+
+    def find_most_disposable_tile(self, player):
+        tile_counts = {}
+        for tile in player:
+            key = (tile.suit, tile.rank)
+            if key not in tile_counts:
+                tile_counts[key] = 0
+            tile_counts[key] += 1
+        most_disposable_tile = None
+        min_count = float('inf')
+        for tile, count in tile_counts.items():
+            if count < min_count:
+                min_count = count
+                most_disposable_tile = tile
+        return most_disposable_tile
+
+    def defensive_strategy(self, player):
+        if self.strategy_mode:
+            return self.suggest_defensive_discard(player)
+        return None
+
+    def suggest_defensive_discard(self, player):
+        return self.find_safe_tile_to_discard(player)
+
+    def find_safe_tile_to_discard(self, player):
+        possible_melds = self.find_possible_melds(player)
+        possible_kongs = self.find_possible_kongs(player)
+        for tile in player:
             if self.is_tile_safe_to_discard(tile, possible_melds, possible_kongs):
                 return tile
-        return None
+        return player[0] if len(player) > 0 else None
 
     def is_tile_safe_to_discard(self, tile, possible_melds, possible_kongs):
         for meld in possible_melds:
@@ -239,7 +284,7 @@ class Mahjong:
             self.players[self.current_player].append(drawn_tile)
             self.check_special_tiles(self.players[self.current_player], drawn_tile)
             self.log_play(f"Player {self.current_player + 1} drew {drawn_tile}")
-            suggested_discard = self.suggest_discard()
+            suggested_discard = self.opponent_strategies[self.current_player](self.players[self.current_player])
             if suggested_discard:
                 self.discard_tile(suggested_discard)
             else:
@@ -274,7 +319,7 @@ class Mahjong:
                 print("Discarded tiles:", self.show_discarded_tiles())
                 print("Melds:", self.melds[self.current_player])
                 print("Kongs:", self.kongs[self.current_player])
-                print("Flowers:", self.flowers[self.current_player])
+                print("Flowers:", self.flowers_in_hand[self.current_player])
                 if not self.strategy_mode:
                     self.activate_strategy_mode()
                 win = self.play_turn()
@@ -362,7 +407,7 @@ class Mahjong:
         self.points[player] = points
         self.update_highest_score(player, points)
         return points
-    def update_speciial_hand_counts(self, player):
+    def update_special_hand_counts(self, player):
         hand = self.players[player]
         all_pong = all(tile.rank in ['1', '9'] for tile in hand) and len(hand) == 14
         if all_pong:
@@ -376,6 +421,13 @@ class Mahjong:
     def default_strategy(self, player):
         if self.strategy_mode:
             return self.suggest_discard()
+        return None
+
+    def suggest_discard(self):
+        possible_melds = self.find_possible_melds(self.players[self.current_player])
+        possible_kongs = self.find_possible_kongs(self.players[self.current_player])
+        if not possible_melds and not possible_kongs:
+            return self.players[self.current_player][0] if len(self.players[self.current_player]) > 0 else None
         return None
 
 if __name__ == "__main__":
