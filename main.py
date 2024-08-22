@@ -45,6 +45,8 @@ class Mahjong:
         self.suit_frequency = {suit: 0 for suit in Mahjong.suits}
         self.rank_frequency = {rank: 0 for rank in Mahjong.ranks}
         self.special_hand_counts = { "all_pong": 0, "pure_triplets": 0 }
+        self.opponent_strategies = [self.default_strategy] * 3
+        self.game_statistics = {'turns': 0, 'draws': 0, 'discards': 0}
 
     def generate_tiles(self):
         tiles = []
@@ -69,6 +71,7 @@ class Mahjong:
     def draw_tile(self):
         tile = self.tiles.pop()
         self.wall_tiles.remove(tile)
+        self.game_statistics['draws'] += 1
         return tile
 
     def deal_hand(self):
@@ -83,6 +86,7 @@ class Mahjong:
             self.players[self.current_player].remove(tile)
             self.discarded_tiles.append(tile)
             self.turn_history.append((self.current_player, tile))
+            self.game_statistics['discards'] += 1
             self.log_play(f"Player {self.current_player + 1} discarded {tile}")
 
     def show_hand(self, player=None):
@@ -211,13 +215,13 @@ class Mahjong:
         return possible_kongs
 
     def suggest_discard(self):
-        if self.strategy_mode:
-            for player_info in self.strategy_info:
-                hand = player_info["hand"]
-                for tile in hand:
-                    if self.is_tile_safe_to_discard(tile, player_info["possible_melds"], player_info["possible_kongs"]):
-                        self.log_play(f"Suggested discard for Player {player_info['player']}: {tile}")
-                        return tile
+        if not self.players[self.current_player]:
+            return None
+        possible_melds = self.find_possible_melds(self.players[self.current_player])
+        possible_kongs = self.find_possible_kongs(self.players[self.current_player])
+        for tile in self.players[self.current_player]:
+            if self.is_tile_safe_to_discard(tile, possible_melds, possible_kongs):
+                return tile
         return None
 
     def is_tile_safe_to_discard(self, tile, possible_melds, possible_kongs):
@@ -249,6 +253,7 @@ class Mahjong:
                 self.reset_round()
             self.current_player = (self.current_player + 1) % 4
             self.turn_count += 1
+            self.game_statistics['turns'] += 1
             return win
         return False
 
@@ -305,8 +310,59 @@ class Mahjong:
 
     def track_rank_frequency(self):
         self.rank_frequency = {rank: sum(tile.rank == rank for tile in self.wall_tiles) for rank in Mahjong.ranks}
+    def show_hand_(self, player=None):
+        if player is None:
+            player = self.current_player
+        return [str(tile) for tile in self.players[player]]
 
-    def update_special_hand_counts(self, player):
+    def show_discarrded_tiles(self):
+        return [str(tile) for tile in self.discarded_tiles]
+
+    def draw_from_walll(self):
+        if len(self.wall_tiles) > 0:
+            return self.draw_tile()
+        return None
+
+    def check_for_wiin(self):
+        return len(self.players[self.current_player]) == 14
+
+    def check_special_tiiles(self, player, tile):
+        if tile.suit == 'Flower' or tile.suit == 'Season':
+            player.remove(tile)
+            self.flowers[self.players.index(player)].append(tile)
+            player.append(self.draw_from_wall())
+            self.log_play(f"Player {self.players.index(player) + 1} drew a {tile.suit} tile and replaced it")
+
+    def add_to_melld(self, player, tiles):
+        if len(tiles) == 3:
+            self.melds[self.players.index(player)].append(tiles)
+            for tile in tiles:
+                player.remove(tile)
+            self.log_play(f"Player {self.players.index(player) + 1} formed a meld with {tiles}")
+
+    def add_to_kongg(self, player, tiles):
+        if len(tiles) == 4:
+            self.kongs[self.players.index(player)].append(tiles)
+            for tile in tiles:
+                player.remove(tile)
+            self.log_play(f"Player {self.players.index(player) + 1} formed a kong with {tiles}")
+
+    def calculate_poiints(self, player):
+        points = 0
+        points += len(self.melds[player]) * 2
+        points += len(self.kongs[player]) * 8
+        points += len(self.flowers[player]) * 4
+        if self.special_rules["heavenly_hand"] and player == 0 and self.turn_count == 0:
+            points += 100
+        if self.special_rules["earthly_hand"] and player == 0 and self.turn_count == 1:
+            points += 50
+        if self.check_thirteen_orphans(player):
+            points += 200
+            self.special_rules["thirteen_orphans"] = True
+        self.points[player] = points
+        self.update_highest_score(player, points)
+        return points
+    def update_speciial_hand_counts(self, player):
         hand = self.players[player]
         all_pong = all(tile.rank in ['1', '9'] for tile in hand) and len(hand) == 14
         if all_pong:
@@ -316,6 +372,11 @@ class Mahjong:
         if pure_triplets:
             self.special_hand_counts["pure_triplets"] += 1
             self.log_play(f"Player {player + 1} has a pure triplets hand.")
+
+    def default_strategy(self, player):
+        if self.strategy_mode:
+            return self.suggest_discard()
+        return None
 
 if __name__ == "__main__":
     game = Mahjong()
