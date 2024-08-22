@@ -19,6 +19,10 @@ class Mahjong:
         self.player_hand = []
         self.discarded_tiles = []
         self.wall_tiles = self.tiles.copy()
+        self.flower_tiles = []
+        self.season_tiles = []
+        self.players = [self.player_hand, [], [], []]  
+        self.current_player = 0
 
     def generate_tiles(self):
         tiles = []
@@ -32,6 +36,11 @@ class Mahjong:
         for dragon in Mahjong.dragon_tiles:
             for _ in range(4):
                 tiles.append(Tile('Dragon', dragon))
+        for i in range(1, 5):
+            self.flower_tiles.append(Tile('Flower', str(i)))
+            self.season_tiles.append(Tile('Season', str(i)))
+        tiles.extend(self.flower_tiles * 4)
+        tiles.extend(self.season_tiles * 4)
         random.shuffle(tiles)
         return tiles
 
@@ -41,16 +50,19 @@ class Mahjong:
         return tile
 
     def deal_hand(self):
-        for _ in range(13):
-            self.player_hand.append(self.draw_tile())
+        for player in self.players:
+            for _ in range(13):
+                player.append(self.draw_tile())
 
     def discard_tile(self, tile):
-        if tile in self.player_hand:
-            self.player_hand.remove(tile)
+        if tile in self.players[self.current_player]:
+            self.players[self.current_player].remove(tile)
             self.discarded_tiles.append(tile)
 
-    def show_hand(self):
-        return [str(tile) for tile in self.player_hand]
+    def show_hand(self, player=None):
+        if player is None:
+            player = self.current_player
+        return [str(tile) for tile in self.players[player]]
 
     def show_discarded_tiles(self):
         return [str(tile) for tile in self.discarded_tiles]
@@ -61,24 +73,29 @@ class Mahjong:
         return None
 
     def check_for_win(self):
-        return len(self.player_hand) == 14
+        return len(self.players[self.current_player]) == 14
 
     def play_turn(self):
         drawn_tile = self.draw_from_wall()
         if drawn_tile:
-            self.player_hand.append(drawn_tile)
-            self.discard_tile(self.player_hand[0])
-            return self.check_for_win()
+            self.players[self.current_player].append(drawn_tile)
+            self.discard_tile(self.players[self.current_player][0])
+            win = self.check_for_win()
+            self.current_player = (self.current_player + 1) % 4
+            return win
         return False
 
+    def play_game(self):
+        self.deal_hand()
+        while True:
+            print(f"Player {self.current_player + 1}'s turn")
+            print("Current hand:", self.show_hand())
+            print("Discarded tiles:", self.show_discarded_tiles())
+            win = self.play_turn()
+            if win:
+                print(f"Player {self.current_player + 1} has a winning hand!")
+                break
+            print("\n" + "-"*20 + "\n")
+
 game = Mahjong()
-game.deal_hand()
-
-while not game.check_for_win():
-    print("Current hand:", game.show_hand())
-    print("Discarded tiles:", game.show_discarded_tiles())
-    win = game.play_turn()
-    if win:
-        print("You have a winning hand!")
-
-print("Final hand:", game.show_hand())
+game.play_game()
