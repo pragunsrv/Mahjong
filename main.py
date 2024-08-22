@@ -39,6 +39,12 @@ class Mahjong:
         self.num_draws = 0
         self.round_wins = [0] * 4
         self.rounds_played = 0
+        self.max_rounds = 4
+        self.highest_score = [0, 0, 0, 0]
+        self.card_counts = {suit: {rank: 0 for rank in Mahjong.ranks} for suit in Mahjong.suits}
+        self.suit_frequency = {suit: 0 for suit in Mahjong.suits}
+        self.rank_frequency = {rank: 0 for rank in Mahjong.ranks}
+        self.special_hand_counts = { "all_pong": 0, "pure_triplets": 0 }
 
     def generate_tiles(self):
         tiles = []
@@ -68,8 +74,9 @@ class Mahjong:
     def deal_hand(self):
         for player in self.players:
             for _ in range(13):
-                player.append(self.draw_tile())
-                self.check_special_tiles(player, player[-1])
+                tile = self.draw_tile()
+                player.append(tile)
+                self.check_special_tiles(player, tile)
 
     def discard_tile(self, tile):
         if tile in self.players[self.current_player]:
@@ -128,6 +135,7 @@ class Mahjong:
             points += 200
             self.special_rules["thirteen_orphans"] = True
         self.points[player] = points
+        self.update_highest_score(player, points)
         return points
 
     def check_special_rules(self):
@@ -253,7 +261,7 @@ class Mahjong:
         self.log_play("Round reset completed.")
 
     def play_game(self):
-        while self.rounds_played < 4:
+        while self.rounds_played < self.max_rounds:
             self.deal_hand()
             while True:
                 print(f"Player {self.current_player + 1}'s turn")
@@ -280,6 +288,34 @@ class Mahjong:
 
     def start(self):
         self.play_game()
+
+    def update_highest_score(self, player, points):
+        if points > self.highest_score[player]:
+            self.highest_score[player] = points
+            self.log_play(f"Player {player + 1} set a new highest score of {points}")
+
+    def track_tile_frequency(self):
+        self.card_counts = {suit: {rank: 0 for rank in Mahjong.ranks} for suit in Mahjong.suits}
+        for suit in Mahjong.suits:
+            for rank in Mahjong.ranks:
+                self.card_counts[suit][rank] = sum(tile.rank == rank for tile in self.wall_tiles if tile.suit == suit)
+
+    def track_suit_frequency(self):
+        self.suit_frequency = {suit: sum(tile.suit == suit for tile in self.wall_tiles) for suit in Mahjong.suits}
+
+    def track_rank_frequency(self):
+        self.rank_frequency = {rank: sum(tile.rank == rank for tile in self.wall_tiles) for rank in Mahjong.ranks}
+
+    def update_special_hand_counts(self, player):
+        hand = self.players[player]
+        all_pong = all(tile.rank in ['1', '9'] for tile in hand) and len(hand) == 14
+        if all_pong:
+            self.special_hand_counts["all_pong"] += 1
+            self.log_play(f"Player {player + 1} has an all-pong hand.")
+        pure_triplets = all(tile.suit == 'Characters' and tile.rank in ['1', '9'] for tile in hand)
+        if pure_triplets:
+            self.special_hand_counts["pure_triplets"] += 1
+            self.log_play(f"Player {player + 1} has a pure triplets hand.")
 
 if __name__ == "__main__":
     game = Mahjong()
